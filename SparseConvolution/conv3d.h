@@ -82,9 +82,9 @@ Voxel convp(SparseTensor *st, Kernel *kl) { // single point convolution
   Voxel v = {0, 0, 0, 0, 0};
   int i, j, k, x_abs, y_abs, z_abs; // coords in kernel/absolute
   int idx = -1;
-  int wt = 1;                              // weight at point
-  int hlx, hly, hlz;                       // kernel half lengths
-  int vol = (kl->x_l * kl->y_l * kl->z_l); // kernel total volume
+  int wt = 1;        // weight at point
+  int hlx, hly, hlz; // kernel half lengths
+  // int vol = (kl->x_l * kl->y_l * kl->z_l); // kernel total volume
   hlx = (kl->x_l - 1) / 2;
   hly = (kl->y_l - 1) / 2;
   hlz = (kl->z_l - 1) / 2;
@@ -146,6 +146,116 @@ Voxel ***submconv1(SparseTensor *st, Kernel *kl) {
     c_m[kl->x][kl->y][kl->z] = convp(st, kl);
   }
 
+  return c_m;
+}
+// first method for generating indice pairs, assumes that memory access is less
+// costly, requires the sparse tensor index matrix to be generated
+void genIdxPairs1(SparseTensor *st, Kernel *kl) {
+  int idx, i, j, k, n;
+  int x_abs, y_abs, z_abs;               // absolute position for kernel weights
+  int vol = kl->x_l * kl->y_l * kl->z_l; // kernel volume
+  int hvol = (vol - 1) / 2;              // half kernel volume
+  int hlx, hly, hlz;                     // kernel half lengths xyz
+  hlx = (kl->x_l - 1) / 2;
+  hly = (kl->y_l - 1) / 2;
+  hlz = (kl->z_l - 1) / 2;
+  // allocate Indice Pair matrix
+  int ***ip = allocate3dMatrix(st->num_vox, 2, vol, -1);
+  for (idx = 0; idx < st->num_vox; idx++) {
+    // index for advancing in third dimension
+    n = 0;
+    // set kernel position
+    kl->x = st->in[idx][0];
+    kl->y = st->in[idx][1];
+    kl->z = st->in[idx][2];
+    // middle pair, equal indices
+    ip[idx][0][hvol] = idx;
+    ip[idx][1][hvol] = idx;
+    // first (and second) half of pairs
+    for (i = -hlx; i <= hlx; i++)
+      for (j = -hly; j <= hly; j++)
+        for (k = -hlz; k <= hlz; k++) {
+          if (i == 0 && j == 0 && k == 0)
+            goto idxdone; // only calculate half the indice pairs
+          x_abs = kl->x + i;
+          y_abs = kl->y + j;
+          z_abs = kl->z + k;
+          // check out of bounds
+          if (x_abs >= 0 && x_abs < st->sh[0])
+            if (y_abs >= 0 && y_abs < st->sh[1])
+              if (z_abs >= 0 && z_abs < st->sh[2]) {
+                ip[idx][0][n] = idx;
+                ip[idx][1][vol - n - 1] = idx;
+                ip[idx][0][vol - n - 1] = st->idxMat[x_abs][y_abs][z_abs];
+                ip[idx][1][n] = st->idxMat[x_abs][y_abs][z_abs];
+              }
+          n++;
+        }
+  idxdone:;
+    ;
+  }
+  st->idxPairs = ip;
+}
+
+Voxel ***submconv2(SparseTensor *st, Kernel *kl) {
+  int idx, n, m, l;
+  int i, j, k, x_abs, y_abs, z_abs; // coords in kernel/absolute
+  int hlx, hly, hlz;                // kernel half lengths xyz
+  hlx = (kl->x_l - 1) / 2;
+  hly = (kl->y_l - 1) / 2;
+  hlz = (kl->z_l - 1) / 2;
+  // main and secondary indices (in index pairs)
+  int m_idx, s_idx;
+  // kernel weight
+  int m_wt, s_wt = 1; // main and secondary weights
+  // set main weight (invariable)
+  m_wt = kl->m[hlx][hly][hlz];
+  Voxel m_v, s_v; // main and secondary voxels
+  // convmat size
+  n = st->sh[0];
+  m = st->sh[1];
+  l = st->sh[2];
+  // allocate convolution matrix
+  Voxel ***c_m = allocate3dMatrix(n, m, l, {0, 0, 0, 0, 0});
+  for (idx = 0; idx < st->num_vox; idx++) {
+    // index for advancing in third dimension
+    n = 0;
+    // iterate all kernel weights
+    for (i = -hlx; i <= hlx; i++)
+      for (j = -hly; j <= hly; j++)
+        for (k = -hlz; k <= hlz; k++) {
+          if (st->idxPairs[idx][0][n] >= 0 && st->idxPairs[idx][1][n] >= 0) {
+            // CORRIGER VERIFICATION POUR NON SUBM
+
+            // set secondary kernel weight
+            s_wt = kl->m[i + hlx][j + hly][k + hlz];
+            // set main and secondary indexes from pairs
+            m_idx = st->idxPairs[idx][0][n];
+            s_idx = st->idxPairs[idx][1][n];
+            // set kernel position at main index
+            kl->x = st->in[m_idx][0];
+            kl->y = st->in[m_idx][1];
+            kl->z = st->in[m_idx][2];
+            // absolute location of current convolution operation
+            x_abs = kl->x + i;
+            y_abs = kl->y + j;
+            z_abs = kl->z + k;
+            // main voxel
+            m_v = st->vox[m_idx];
+            s_v = st->vox[s_idx];
+            // calculate convolution
+            c_m[x_abs][y_abs][z_abs].n += (m_v.n * m_wt + s_v.n * s_wt);
+            c_m[x_abs][y_abs][z_abs].r_m += (m_v.r_m * m_wt + s_v.r_m * s_wt);
+            c_m[x_abs][y_abs][z_abs].x_m += (m_v.x_m * m_wt + s_v.x_m * s_wt);
+            c_m[x_abs][y_abs][z_abs].y_m += (m_v.y_m * m_wt + s_v.y_m * s_wt);
+            c_m[x_abs][y_abs][z_abs].z_m += (m_v.z_m * m_wt + s_v.z_m * s_wt);
+            // TODO: USE LABEL TO HALF MEMORY ACCESSES, INVERSE MAIN AND
+            // SECONDARY WEIGHTS
+          }
+          n++;
+        }
+    // doneconvp:;;
+  }
   return c_m;
 }
 

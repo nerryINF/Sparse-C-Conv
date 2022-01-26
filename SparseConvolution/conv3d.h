@@ -8,9 +8,12 @@
 #ifndef CONV3D_H_
 #define CONV3D_H_
 #include "preproc.h"
+#include <omp.h>
 
 struct Kernel {
   int x_l, y_l, z_l;       // xyz sizes of kernel
+  int x_h, y_h, z_h;       // xyz half-lenghts
+  int vol;                 // vol of kernel
   int x = 0, y = 0, z = 0; // xyz location of kernel
   int ***m;                // kernel matrix
 };
@@ -34,6 +37,38 @@ int ***allocate3dMatrix(int n, int m, int l, int v) {
         p[i][j][k] = v;
 
   return p;
+}
+
+float ***allocate3dMatrix(int n, int m, int l, float v) {
+  float ***p;
+  int i, j, k;
+
+  p = (float ***)malloc(n * sizeof(float **));
+
+  for (i = 0; i < n; i++)
+    p[i] = (float **)malloc(m * sizeof(float *));
+
+  for (i = 0; i < n; i++)
+    for (j = 0; j < m; j++)
+      p[i][j] = (float *)malloc(l * sizeof(float));
+
+  for (i = 0; i < n; i++)
+    for (j = 0; j < m; j++)
+      for (k = 0; k < l; k++)
+        p[i][j][k] = v;
+
+  return p;
+}
+
+void initKernel(Kernel * kl, int x_l, int y_l, int z_l){
+    kl->x_l = x_l;
+    kl->y_l = y_l;
+    kl->z_l = z_l;
+    kl->x_h = (x_l - 1) / 2;
+    kl->y_h = (y_l - 1) / 2;
+    kl->z_h = (z_l - 1) / 2;
+    kl->vol = x_l*y_l*z_l;
+    kl->m = allocate3dMatrix(x_l, y_l, z_l, 1);
 }
 
 Voxel ***allocate3dMatrix(int n, int m, int l, Voxel v) {
@@ -77,6 +112,8 @@ void genIdxMatrix(SparseTensor *st) {
 
   st->idxMat = IdxMatrix;
 }
+
+/*
 
 Voxel convp(SparseTensor *st, Kernel *kl) { // single point convolution
   Voxel v = {0, 0, 0, 0, 0};
@@ -258,6 +295,7 @@ Voxel ***submconv2(SparseTensor *st, Kernel *kl) {
   }
   return c_m;
 }
+*/
 
 void matToCsv(Voxel ***v, int n, int m, int l, const char *f) {
   std::ofstream of(f);
@@ -269,5 +307,102 @@ void matToCsv(Voxel ***v, int n, int m, int l, const char *f) {
            << v[i][j][k].y_m << ',' << v[i][j][k].z_m << ',' << v[i][j][k].r_m
            << ',' << v[i][j][k].n << '\n';
 }
+
+void matToCsv(float ***c_m, int n, int m, int l, const char *f){
+    std::ofstream of(f);
+    int i, j, k;
+    for (i = 0; i < n; i++)
+      for (j = 0; j < m; j++)
+        for (k = 0; k < l; k++)
+            of << i << ',' << j << ',' << k
+               << ',' << c_m[i][j][k] << '\n';
+}
+
+/* conp2, final sparse non-subm sub-function
+ * c_m  : result matrix
+ * in   : index of current voxel in st->vox
+ * st   : sparse tensor
+ * kl   : convolution kernel
+ */
+void convp2(float *** c_m, int in, SparseTensor *st, Kernel *kl) {
+  int i, j, k; // coords relative to kernel of the output point
+  int x, y, z; // buffer for absolute coordinates
+  int wt, res;      // buffer for weight
+  for (i = -kl->x_h; i <= kl->x_h; i++)
+    for (j = -kl->y_h; j <= kl->y_h; j++)
+      for (k = -kl->z_h; k <= kl->z_h; k++) {
+        // ALL ABSOLUTE COORDINATES COME FROM INVERTED KERNEL COORDINATES
+        x = kl->x - i;
+        y = kl->y - j;
+        z = kl->z - k;
+        // get weight (SAME FOR ALL FEATURES FOR TESTING PURPOSES)
+        wt = kl->m[i + kl->x_h][j + kl->y_h][k + kl->z_h];
+        // check out of bounds
+        if (x >= 0 && x < st->sh[0])
+          if (y >= 0 && y < st->sh[1])
+            if (z >= 0 && z < st->sh[2]) {
+                res = wt*(st->vox[in].r_m
+                          + st->vox[in].x_m
+                          + st->vox[in].y_m
+                          + st->vox[in].z_m);
+                c_m[x][y][z] += res;
+            }
+      }
+}
+
+/*
+void convp3(float *** c_m, int in, SparseTensor *st, Kernel *kl) { // PARALLELIZATION
+  int i, j, k; // coords relative to kernel of the output point
+  int x, y, z; // buffer for absolute coordinates
+  int wt,res;      // buffer for weight and result
+  #pragma omp parallel for private(j,k)
+  for (i = -kl->x_h; i <= kl->x_h; i++)
+    for (j = -kl->y_h; j <= kl->y_h; j++)
+      for (k = -kl->z_h; k <= kl->z_h; k++) {
+        // ALL ABSOLUTE COORDINATES COME FROM INVERTED KERNEL COORDINATES
+        x = kl->x - i;
+        y = kl->y - j;
+        z = kl->z - k;
+        // get weight (SAME FOR ALL FEATURES FOR TESTING PURPOSES)
+        wt = kl->m[i + kl->x_h][j + kl->y_h][k + kl->z_h];
+        // check out of bounds
+        if (x >= 0 && x < st->sh[0])
+          if (y >= 0 && y < st->sh[1])
+            if (z >= 0 && z < st->sh[2]) {
+                res = wt*(st->vox[in].r_m
+                          + st->vox[in].x_m
+                          + st->vox[in].y_m
+                          + st->vox[in].z_m);
+                #pragma omp critical
+                {
+                c_m[x][y][z] += res;
+                }
+            }
+      }
+}
+*/
+
+float ***conv2(SparseTensor *st, Kernel *kl) { // final sparse convolution
+  int i;
+
+  // allocate result matrix
+  float ***c_m = allocate3dMatrix(st->sh[0], st->sh[1], st->sh[2], (float)0);
+
+  // convolution
+  for (i = 0; i < st->num_vox; i++) {
+    // center kernel at voxel
+    kl->x = st->in[i][0];
+    kl->y = st->in[i][1];
+    kl->z = st->in[i][2];
+    convp2(c_m, i, st, kl);
+  }
+
+  return c_m;
+}
+
+
+
+
+
 
 #endif /* CONV3D_H_ */

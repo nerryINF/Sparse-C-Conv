@@ -1,7 +1,9 @@
 TEMPLATE = app
-CONFIG += console c++17
+CONFIG += console c++17 optimize_full
 CONFIG -= app_bundle
 CONFIG -= qt
+QMAKE_CXXFLAGS += -fopenmp -funroll-loops
+LIBS += -fopenmp
 
 SOURCES += \
         main.cpp

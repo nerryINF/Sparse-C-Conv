@@ -7,8 +7,9 @@
 
 #ifndef CONV3D_H_
 #define CONV3D_H_
-#include "preproc.h"
 #include <omp.h>
+
+#include "preproc.h"
 
 struct Kernel {
   int x_l, y_l, z_l;       // xyz sizes of kernel
@@ -60,15 +61,15 @@ float ***allocate3dMatrix(int n, int m, int l, float v) {
   return p;
 }
 
-void initKernel(Kernel * kl, int x_l, int y_l, int z_l){
-    kl->x_l = x_l;
-    kl->y_l = y_l;
-    kl->z_l = z_l;
-    kl->x_h = (x_l - 1) / 2;
-    kl->y_h = (y_l - 1) / 2;
-    kl->z_h = (z_l - 1) / 2;
-    kl->vol = x_l*y_l*z_l;
-    kl->m = allocate3dMatrix(x_l, y_l, z_l, 1);
+void initKernel(Kernel *kl, int x_l, int y_l, int z_l) {
+  kl->x_l = x_l;
+  kl->y_l = y_l;
+  kl->z_l = z_l;
+  kl->x_h = (x_l - 1) / 2;
+  kl->y_h = (y_l - 1) / 2;
+  kl->z_h = (z_l - 1) / 2;
+  kl->vol = x_l * y_l * z_l;
+  kl->m = allocate3dMatrix(x_l, y_l, z_l, 1);
 }
 
 Voxel ***allocate3dMatrix(int n, int m, int l, Voxel v) {
@@ -93,7 +94,6 @@ Voxel ***allocate3dMatrix(int n, int m, int l, Voxel v) {
 }
 
 void genIdxMatrix(SparseTensor *st) {
-
   int n, m, l, i, x, y, z;
   n = st->sh[0];
   m = st->sh[1];
@@ -308,14 +308,13 @@ void matToCsv(Voxel ***v, int n, int m, int l, const char *f) {
            << ',' << v[i][j][k].n << '\n';
 }
 
-void matToCsv(float ***c_m, int n, int m, int l, const char *f){
-    std::ofstream of(f);
-    int i, j, k;
-    for (i = 0; i < n; i++)
-      for (j = 0; j < m; j++)
-        for (k = 0; k < l; k++)
-            of << i << ',' << j << ',' << k
-               << ',' << c_m[i][j][k] << '\n';
+void matToCsv(float ***c_m, int n, int m, int l, const char *f) {
+  std::ofstream of(f);
+  int i, j, k;
+  for (i = 0; i < n; i++)
+    for (j = 0; j < m; j++)
+      for (k = 0; k < l; k++)
+        of << i << ',' << j << ',' << k << ',' << c_m[i][j][k] << '\n';
 }
 
 /* conp2, final sparse non-subm sub-function
@@ -324,10 +323,10 @@ void matToCsv(float ***c_m, int n, int m, int l, const char *f){
  * st   : sparse tensor
  * kl   : convolution kernel
  */
-void convp2(float *** c_m, int in, SparseTensor *st, Kernel *kl) {
+void convp2(float ***c_m, int in, SparseTensor *st, Kernel *kl) {
   int i, j, k; // coords relative to kernel of the output point
   int x, y, z; // buffer for absolute coordinates
-  int wt, res;      // buffer for weight
+  int wt, res; // buffer for weight
   for (i = -kl->x_h; i <= kl->x_h; i++)
     for (j = -kl->y_h; j <= kl->y_h; j++)
       for (k = -kl->z_h; k <= kl->z_h; k++) {
@@ -341,18 +340,16 @@ void convp2(float *** c_m, int in, SparseTensor *st, Kernel *kl) {
         if (x >= 0 && x < st->sh[0])
           if (y >= 0 && y < st->sh[1])
             if (z >= 0 && z < st->sh[2]) {
-                res = wt*(st->vox[in].r_m
-                          + st->vox[in].x_m
-                          + st->vox[in].y_m
-                          + st->vox[in].z_m);
-                c_m[x][y][z] += res;
+              res = wt * (st->vox[in].r_m + st->vox[in].x_m + st->vox[in].y_m +
+                          st->vox[in].z_m);
+              c_m[x][y][z] += res;
             }
       }
 }
 
 /*
-void convp3(float *** c_m, int in, SparseTensor *st, Kernel *kl) { // PARALLELIZATION
-  int i, j, k; // coords relative to kernel of the output point
+void convp3(float *** c_m, int in, SparseTensor *st, Kernel *kl) { //
+PARALLELIZATION int i, j, k; // coords relative to kernel of the output point
   int x, y, z; // buffer for absolute coordinates
   int wt,res;      // buffer for weight and result
   #pragma omp parallel for private(j,k)
@@ -400,9 +397,112 @@ float ***conv2(SparseTensor *st, Kernel *kl) { // final sparse convolution
   return c_m;
 }
 
+struct Rule {
+  // the xyz Vout coordinates
+  int x, y, z;
+  // [3][3][3] index of Vin affected by each Kernel weight
+  // index ties back to voxel list in sparsetensor
+  int ***m;
+};
 
+struct RuleBook {
+  // rules
+  Rule *r;
+  // number of rules
+  int n;
+};
 
+void addRule(int x, int y, int z, int i, int j, int k, int voxIdx, Kernel *kl,
+             RuleBook *rb) {
+  int p;
+  // check that rule doesn't exist (according to vout coords)
+  int ruleIdx = -1;
+  for (p = 0; p <= rb->n; p++)
+    if (x == rb->r[p].x && y == rb->r[p].y && z == rb->r[p].z)
+      ruleIdx = p;
+  // if rule doesn't exist, reallocate and add new rule
+  if (ruleIdx < 0) {
+    rb->n++;
+    // allocate space for new rule
+    rb->r = (Rule *)realloc(rb->r, (rb->n + 1) * sizeof(Rule));
+    // assign vout coords for new rule
+    rb->r[rb->n].x = x;
+    rb->r[rb->n].y = y;
+    rb->r[rb->n].z = z;
+    // allocate space for rule matrix
+    rb->r[rb->n].m = allocate3dMatrix(kl->x_l, kl->y_l, kl->z_l, -1);
+    // assign in rule matrix
+    rb->r[rb->n].m[i][j][k] = voxIdx;
+  } else {
+    // assign in rule matrix
+    rb->r[ruleIdx].m[i][j][k] = voxIdx;
+  }
+}
 
+void voxToRuleBook(int voxIdx, SparseTensor *st, Kernel *kl, RuleBook *rb) {
+  int x, y, z, i, j, k;
+  for (i = -kl->x_h; i <= kl->x_h; i++)
+    for (j = -kl->y_h; j <= kl->y_h; j++)
+      for (k = -kl->z_h; k <= kl->z_h; k++) {
+        // ALL ABSOLUTE COORDINATES COME FROM INVERTED KERNEL COORDINATES
+        x = kl->x - i;
+        y = kl->y - j;
+        z = kl->z - k;
+        // check out of bounds
+        if (x >= 0 && x < st->sh[0])
+          if (y >= 0 && y < st->sh[1])
+            if (z >= 0 && z < st->sh[2]) // if in bounds add rule
+              addRule(x, y, z, i + kl->x_h, j + kl->y_h, k + kl->z_h, voxIdx,
+                      kl, rb);
+      }
+}
+RuleBook *genRuleBook(SparseTensor *st, Kernel *kl) {
+  int l;
+  RuleBook *rb = new RuleBook;
+  // counter for Vouts (Vout key/index)
+  rb->n = 0;
+  // allocate
+  rb->r = (Rule *)malloc((rb->n + 1) * sizeof(Rule));
+  // allocate space for first rule matrix
+  rb->r[rb->n].m = allocate3dMatrix(kl->x_l, kl->y_l, kl->z_l, -1);
+  // init first rule
+  rb->r[rb->n].x = st->in[0][0];
+  rb->r[rb->n].y = st->in[0][1];
+  rb->r[rb->n].z = st->in[0][2];
+  // fill rulebook
+  for (l = 0; l < st->num_vox; l++) {
+    // center kernel at voxel
+    kl->x = st->in[l][0];
+    kl->y = st->in[l][1];
+    kl->z = st->in[l][2];
+    voxToRuleBook(l, st, kl, rb);
+  }
+  printf("%d\n", rb->n);
+  return rb;
+}
 
+void conv3(SparseTensor *st, Kernel *kl, RuleBook *rb, const char *f) {
+  int i, j, k, p;
+  float res;
+  std::ofstream of(f);
+  for (p = 0; p <= rb->n; p++) { // iterate rules
+    res = 0;
+    for (i = 0; i < kl->x_l; i++)
+      for (j = 0; j < kl->y_l; j++)
+        for (k = 0; k < kl->z_l; k++) {
+          // check that idx isn't -1
+          if (rb->r[p].m[i][j][k] >= 0) {
+            // calculate result
+            res += ((st->vox[rb->r[p].m[i][j][k]].r_m +
+                     st->vox[rb->r[p].m[i][j][k]].x_m +
+                     st->vox[rb->r[p].m[i][j][k]].y_m +
+                     st->vox[rb->r[p].m[i][j][k]].z_m) *
+                    kl->m[i][j][k]);
+          }
+        }
+    of << rb->r[p].x << ',' << rb->r[p].y << ',' << rb->r[p].z << ',' << res
+       << '\n';
+  }
+}
 
 #endif /* CONV3D_H_ */

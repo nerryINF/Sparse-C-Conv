@@ -8,10 +8,29 @@
 #ifndef PREPROC_H_
 #define PREPROC_H_
 #include <fstream>
-
+#include <stdbool.h>
 struct Voxel {
   float x_m, y_m, z_m, r_m; // xyz medians and reflectance means
   int n;                    // number of points
+};
+
+struct Indice {
+  int x, y, z;
+};
+
+struct Rule {
+  // the xyz Vout coordinates
+  int x, y, z;
+  // [3][3][3] index of Vin affected by each Kernel weight
+  // index ties back to voxel list in sparsetensor
+  int ***m;
+};
+
+struct RuleBook {
+  // rules
+  Rule *r;
+  // number of rules
+  int n;
 };
 
 struct SparseTensor {
@@ -22,6 +41,16 @@ struct SparseTensor {
   int ***idxMat;   // dynamically allocated index matrix
   int ***idxPairs; // dynamically allocated index pair matrix
   int **in;        // indices, dynamically allocated
+};
+
+struct ComputeTensor {
+  unsigned short sh[3];  // shape of the compute unit
+  unsigned short loc[3]; // absolute location of the tensor
+  unsigned short n = -1; // index for voxels
+  Voxel *vox; // voxels inside shape and at the edge (within kernel half-lenght)
+  Indice *in; // indices for above voxels (NEW STRUCT)
+              //  _Bool *e;   // 1 if outside ct shape (edge), 0 if inside
+  RuleBook *rb; // rulebook
 };
 
 class DataImporter {

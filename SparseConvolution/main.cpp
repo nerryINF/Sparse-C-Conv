@@ -8,15 +8,17 @@ int main() {
   // genIdxMatrix(&st);
   Kernel *kl = new Kernel;
   initKernel(kl, 3, 3, 3);
-  RuleBook *rb = genRuleBook(&st, kl);
-  conv3(&st, kl, rb, "../SparseConvolution/data/conv3.csv");
-  // float ***c_m = conv2(&st, kl);
-  //  matToCsv(c_m, st.sh[0], st.sh[1], st.sh[2],
-  //          "../SparseConvolution/data/conv.csv");
-  //  delete kl;
-  // genIdxPairs1(&st, &kl);
-  //  Voxel ***c_m = submconv1(&st, &kl);
-  //  for testing
-  //  matToCsv(c_m, st.sh[0], st.sh[1], st.sh[2],
-  //          "../SparseConvolution/data/submconv.csv");
+  ComputeTensor **ct = genCTList(&st, kl, 8);
+
+  // RuleBook *rb = genRuleBook(&st, kl);
+  // conv3(&st, kl, rb, "../SparseConvolution/data/conv3.csv");
+  //  float ***c_m = conv2(&st, kl);
+  //   matToCsv(c_m, st.sh[0], st.sh[1], st.sh[2],
+  //           "../SparseConvolution/data/conv.csv");
+  //   delete kl;
+  //  genIdxPairs1(&st, &kl);
+  //   Voxel ***c_m = submconv1(&st, &kl);
+  //   for testing
+  //   matToCsv(c_m, st.sh[0], st.sh[1], st.sh[2],
+  //           "../SparseConvolution/data/submconv.csv");
 }

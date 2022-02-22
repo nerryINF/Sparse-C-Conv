@@ -12,56 +12,25 @@
 #include <string.h>
 
 struct Kernel {
-  int x_l, y_l, z_l;       // xyz sizes of kernel
-  int x_h, y_h, z_h;       // xyz half-lenghts
-  int vol;                 // vol of kernel
-  int x = 0, y = 0, z = 0; // xyz location of kernel
-  int ***m;                // kernel matrix
+  int x_l, y_l, z_l;             // xyz sizes of kernel
+  int x_h, y_h, z_h;             // xyz half-lenghts
+  int vol;                       // vol of kernel
+  int x = 0, y = 0, z = 0;       // xyz location of kernel
+  int m[MAX_KL][MAX_KL][MAX_KL]; // kernel matrix
+  Indice off[KL_VOL];
 };
 
-int ***allocate3dMatrix(int n, int m, int l, int v) {
-  int ***p;
-  int i, j, k;
-
-  p = (int ***)malloc(n * sizeof(int **));
-
-  for (i = 0; i < n; i++)
-    p[i] = (int **)malloc(m * sizeof(int *));
-
-  for (i = 0; i < n; i++)
-    for (j = 0; j < m; j++)
-      p[i][j] = (int *)malloc(l * sizeof(int));
-
-  for (i = 0; i < n; i++)
-    for (j = 0; j < m; j++)
-      for (k = 0; k < l; k++)
-        p[i][j][k] = v;
-
-  return p;
-}
-
-float ***allocate3dMatrix(int n, int m, int l, float v) {
-  float ***p;
-  int i, j, k;
-
-  p = (float ***)malloc(n * sizeof(float **));
-
-  for (i = 0; i < n; i++)
-    p[i] = (float **)malloc(m * sizeof(float *));
-
-  for (i = 0; i < n; i++)
-    for (j = 0; j < m; j++)
-      p[i][j] = (float *)malloc(l * sizeof(float));
-
-  for (i = 0; i < n; i++)
-    for (j = 0; j < m; j++)
-      for (k = 0; k < l; k++)
-        p[i][j][k] = v;
-
-  return p;
+bool checkOOB(Indice in) {
+  bool ret = 1;
+  if (in.x >= 0 && in.x < SH_X)
+    if (in.y >= 0 && in.y < SH_Y)
+      if (in.z >= 0 && in.z < SH_Z)
+        ret = 0;
+  return ret;
 }
 
 void initKernel(Kernel *kl, int x_l, int y_l, int z_l) {
+  int i, j, k, n = 0;
   kl->x_l = x_l;
   kl->y_l = y_l;
   kl->z_l = z_l;
@@ -69,12 +38,25 @@ void initKernel(Kernel *kl, int x_l, int y_l, int z_l) {
   kl->y_h = (y_l - 1) / 2;
   kl->z_h = (z_l - 1) / 2;
   kl->vol = x_l * y_l * z_l;
-  kl->m = allocate3dMatrix(x_l, y_l, z_l, 1);
+  // default kernel
+  for (i = 0; i < x_l; i++)
+    for (j = 0; j < y_l; j++)
+      for (k = 0; k < z_l; k++)
+        kl->m[i][j][k] = 1;
+
+  for (i = -kl->x_h; i <= kl->x_h; i++)
+    for (j = -kl->y_h; j <= kl->y_h; j++)
+      for (k = -kl->z_h; k <= kl->z_h; k++) {
+        kl->off[n].x = i;
+        kl->off[n].y = j;
+        kl->off[n].z = k;
+        n++;
+      }
 }
 
 void addRule(int x, int y, int z, int i, int j, int k, int voxIdx, Kernel *kl,
              RuleBook *rb) {
-  int p;
+  int p, l, m, n;
   // check that rule doesn't exist (according to vout coords)
   int ruleIdx = -1;
   for (p = 0; p <= rb->n; p++)
@@ -83,14 +65,15 @@ void addRule(int x, int y, int z, int i, int j, int k, int voxIdx, Kernel *kl,
   // if rule doesn't exist, reallocate and add new rule
   if (ruleIdx < 0) {
     rb->n++;
-    // allocate space for new rule
-    rb->r = (Rule *)realloc(rb->r, (rb->n + 1) * sizeof(Rule));
     // assign vout coords for new rule
     rb->r[rb->n].x = x;
     rb->r[rb->n].y = y;
     rb->r[rb->n].z = z;
-    // allocate space for rule matrix
-    rb->r[rb->n].m = allocate3dMatrix(kl->x_l, kl->y_l, kl->z_l, -1);
+    // init rule matrix
+    for (l = 0; l < MAX_KL; l++)
+      for (m = 0; m < MAX_KL; m++)
+        for (n = 0; n < MAX_KL; n++)
+          rb->r[rb->n].m[l][m][n] = -1;
     // assign in rule matrix
     rb->r[rb->n].m[i][j][k] = voxIdx;
   } else {
@@ -109,10 +92,10 @@ void voxToRuleBook(int voxIdx, ComputeTensor *ct, Kernel *kl, RuleBook *rb) {
         y = kl->y - j;
         z = kl->z - k;
         // check out of bounds
-        if (x >= ct->loc[0] && x < ct->loc[0] + ct->sh[0])
-          if (y >= ct->loc[1] && y < ct->loc[1] + ct->sh[1])
-            if (z >= ct->loc[2] &&
-                z < ct->loc[2] + ct->sh[2] + 1) // if in bounds add rule
+        if (x >= ct->loc.x && x < ct->loc.x + CT_SH_X)
+          if (y >= ct->loc.y && y < ct->loc.y + CT_SH_Y)
+            if (z >= ct->loc.z &&
+                z < ct->loc.z + CT_SH_Z) // if in bounds add rule
               addRule(x, y, z, i + kl->x_h, j + kl->y_h, k + kl->z_h, voxIdx,
                       kl, rb);
       }
@@ -120,141 +103,142 @@ void voxToRuleBook(int voxIdx, ComputeTensor *ct, Kernel *kl, RuleBook *rb) {
 
 void genRuleBook(ComputeTensor *ct, Kernel *kl) {
   int l;
-  RuleBook *rb = (RuleBook *)malloc(sizeof(RuleBook));
   // counter for Vouts (Vout key/index)
-  rb->n = 0;
-  // allocate
-  rb->r = (Rule *)malloc((rb->n + 1) * sizeof(Rule));
-  // allocate space for first rule matrix
-  rb->r[rb->n].m = allocate3dMatrix(kl->x_l, kl->y_l, kl->z_l, -1);
+  ct->rb.n = 0;
   // init first rule
-  rb->r[rb->n].x = ct->in[0].x;
-  rb->r[rb->n].y = ct->in[0].y;
-  rb->r[rb->n].z = ct->in[0].z;
+  ct->rb.r[0].x = ct->in[0].x;
+  ct->rb.r[0].y = ct->in[0].y;
+  ct->rb.r[0].z = ct->in[0].z;
   // fill rulebook
   for (l = 0; l < ct->n + 1; l++) {
     // center kernel at voxel
     kl->x = ct->in[l].x;
     kl->y = ct->in[l].y;
     kl->z = ct->in[l].z;
-    voxToRuleBook(l, ct, kl, rb);
+    voxToRuleBook(l, ct, kl, &ct->rb);
   }
-  printf("rb->n : %d\n", rb->n);
-  ct->rb = rb;
+  printf("rb->n : %d\n", ct->rb.n);
 }
 
-void conv4(ComputeTensor *ct, Kernel *kl, const char *f) {
-  int i, j, k, p;
+void conv4(ComputeTensor *ct_l[CT_NUM], Kernel *kl, const char *f) {
+  int i, j, k, p, m;
   float res;
   std::ofstream of(f, std::ios_base::app);
-
-  for (p = 0; p <= ct->rb->n; p++) { // iterate rules
-    res = 0;
-    for (i = 0; i < kl->x_l; i++)
-      for (j = 0; j < kl->y_l; j++)
-        for (k = 0; k < kl->z_l; k++) {
-          // check that idx isn't -1
-          if (ct->rb->r[p].m[i][j][k] >= 0) {
-            // calculate result
-            res += ((ct->vox[ct->rb->r[p].m[i][j][k]].r_m +
-                     ct->vox[ct->rb->r[p].m[i][j][k]].x_m +
-                     ct->vox[ct->rb->r[p].m[i][j][k]].y_m +
-                     ct->vox[ct->rb->r[p].m[i][j][k]].z_m) *
-                    kl->m[i][j][k]);
-          }
-        }
-    of << ct->rb->r[p].x << ',' << ct->rb->r[p].y << ',' << ct->rb->r[p].z
-       << ',' << res << '\n';
+  ComputeTensor *ct = 0;
+  // iterate over cts
+  for (m = 0; m < CT_NUM; m++) {
+    // check that ct is initialized
+    if (ct_l[m]) {
+      ct = ct_l[m];
+      // printf("%d\n", ct->n);
+      //  generate rulebook
+      genRuleBook(ct, kl);
+      // do convolution
+      for (p = 0; p <= ct->rb.n; p++) { // iterate rules
+        res = 0;
+        for (i = 0; i < kl->x_l; i++)
+          for (j = 0; j < kl->y_l; j++)
+            for (k = 0; k < kl->z_l; k++) {
+              // check that idx isn't -1
+              if (ct->rb.r[p].m[i][j][k] >= 0) {
+                // calculate result
+                res += ((ct->vox[ct->rb.r[p].m[i][j][k]].r_m +
+                         ct->vox[ct->rb.r[p].m[i][j][k]].x_m +
+                         ct->vox[ct->rb.r[p].m[i][j][k]].y_m +
+                         ct->vox[ct->rb.r[p].m[i][j][k]].z_m) *
+                        kl->m[i][j][k]);
+              }
+            }
+        of << ct->rb.r[p].x << ',' << ct->rb.r[p].y << ',' << ct->rb.r[p].z
+           << ',' << res << '\n';
+      }
+    }
   }
 }
 
-ComputeTensor **genCTList(SparseTensor *st, Kernel *kl, unsigned char div) {
-  // shape for all ct's
-  unsigned short ct_sh[3] = {(unsigned short)(st->sh[0] / div),
-                             (unsigned short)(st->sh[1] / div),
-                             (unsigned short)(st->sh[2] / div)};
-  unsigned short i, j, k, m, p = 0;
-  _Bool hasVoxel = 0;
-  // allocate list to ct pointers (div^3 ct's)
-  ComputeTensor **ct_l =
-      (ComputeTensor **)calloc(div * div * div, sizeof(ComputeTensor *));
+int voxToCTListIdx(Indice in) {
+  Indice ret;
+  int ct_l_i;
+  ret.x = in.x / CT_SH_X;
+  ret.y = in.y / CT_SH_Y;
+  ret.z = in.z / CT_SH_Z;
+  // x + (y*x_max) + (z*x_max*y_max)
+  ct_l_i = ret.x + (ret.y * CT_DIV_X) + (ret.z * CT_DIV_X * CT_DIV_Y);
+  return ct_l_i;
+}
 
-  for (i = 0; i < st->sh[0]; i += ct_sh[0])
-    for (j = 0; j < st->sh[1]; j += ct_sh[1])
-      for (k = 0; k < st->sh[2]; k += ct_sh[2]) {
-        // init voxel count
-        hasVoxel = 0;
-        // iterate voxels
-        for (m = 0; m < st->num_vox; m++) {
-          if (st->in[m][0] >= i - kl->x_h &&
-              st->in[m][0] <= i + ct_sh[0] + kl->x_h)
-            if (st->in[m][1] >= j - kl->y_h &&
-                st->in[m][1] <= j + ct_sh[1] + kl->y_h)
-              if (st->in[m][2] >= k - kl->z_h &&
-                  st->in[m][2] <= k + ct_sh[2] + kl->z_h) {
-                // init tensor
-                if (!hasVoxel) {
-                  printf("%d\n", p);
-                  ct_l[p] = (ComputeTensor *)malloc(sizeof(ComputeTensor));
-                  hasVoxel = 1;
-                  // set voxel index
-                  ct_l[p]->n = 0;
-                  // init shape
-                  memcpy(ct_l[p]->sh, ct_sh, sizeof(ct_sh));
-                  // set tensor location
-                  ct_l[p]->loc[0] = i;
-                  ct_l[p]->loc[1] = j;
-                  ct_l[p]->loc[2] = k;
-                  // init indice and feature lists
-                  ct_l[p]->in = (Indice *)malloc(sizeof(Indice));
-                  ct_l[p]->vox = (Voxel *)malloc(sizeof(Voxel));
-                  //                  ct_l[p]->e = (_Bool
-                  //                  *)malloc(sizeof(_Bool));
-                } else { // tensor already init
-                  // increment voxel index
-                  ct_l[p]->n++;
-                  // reallocate indice and feature lists
-                  ct_l[p]->in = (Indice *)realloc(
-                      ct_l[p]->in, (ct_l[p]->n + 1) * sizeof(Indice));
-                  ct_l[p]->vox = (Voxel *)realloc(
-                      ct_l[p]->vox, (ct_l[p]->n + 1) * sizeof(Voxel));
-                  //                  ct_l[p]->e = (_Bool *)realloc(ct_l[p]->e,
-                  //                  (ct_l[p]->n + 1) *
-                  //                                                                sizeof(_Bool));
-                }
-                // set indices
-                ct_l[p]->in[ct_l[p]->n].x = st->in[m][0];
-                ct_l[p]->in[ct_l[p]->n].y = st->in[m][1];
-                ct_l[p]->in[ct_l[p]->n].z = st->in[m][2];
-                // set features
-                ct_l[p]->vox[ct_l[p]->n].n = st->vox[m].n;
-                ct_l[p]->vox[ct_l[p]->n].x_m = st->vox[m].x_m;
-                ct_l[p]->vox[ct_l[p]->n].y_m = st->vox[m].y_m;
-                ct_l[p]->vox[ct_l[p]->n].z_m = st->vox[m].z_m;
-                ct_l[p]->vox[ct_l[p]->n].r_m = st->vox[m].r_m;
-                // (TODO) FIX ELSEIF
-                //                ct_l[p]->e[ct_l[p]->n] = 0;
-                //                if (st->in[m][0] < i || st->in[m][0] > i +
-                //                ct_sh[0] ||
-                //                    st->in[m][1] < j || st->in[m][1] > j +
-                //                    ct_sh[1] || st->in[m][2] < k ||
-                //                    st->in[m][2] > k + ct_sh[2])
-                //                  ct_l[p]->e[ct_l[p]->n] = 1; // EDGE
-              }
-        }
+Indice voxToCTListIn(Indice in) {
+  Indice ret;
+  ret.x = in.x / CT_SH_X;
+  ret.y = in.y / CT_SH_Y;
+  ret.z = in.z / CT_SH_Z;
+  return ret;
+}
 
-        /////////////////// CONVOLUTION //////////////////////
-        if (hasVoxel) {
-          genRuleBook(ct_l[p], kl);
-          conv4(ct_l[p], kl, "../SparseConvolution/data/conv4.csv");
-        }
-        //////////////////////////////////////////////////////
+void addInToCTList(Indice ct_in, Indice in, Voxel *vox,
+                   ComputeTensor *ct[CT_NUM], int ctl_i) {
+  // ADD VOXEL TO CT
+  // ct_n = ct_l[ct_l_i]->n;
+  // check if ct is initialized
+  if (!ct[ctl_i]) {
+    // init ct
+    ct[ctl_i] = (ComputeTensor *)malloc(sizeof(ComputeTensor));
+    // set ct loc
+    ct[ctl_i]->loc.x = ct_in.x * CT_SH_X;
+    ct[ctl_i]->loc.y = ct_in.y * CT_SH_Y;
+    ct[ctl_i]->loc.z = ct_in.z * CT_SH_Z;
+  }
+  ct[ctl_i]->vox[ct[ctl_i]->n] = *vox;
+  ct[ctl_i]->in[ct[ctl_i]->n] = in;
+  ct[ctl_i]->n++;
+}
 
-        // increment tensor count
-        p++;
+void addVoxToCTList(Indice in, Voxel *vox, ComputeTensor *ct_l[CT_NUM],
+                    Kernel *kl) {
+  short ct_in[8] = {0}; // buffer for non-reapeating ct's for each voxel
+  Indice in_buf = {0, 0, 0};
+  int ctl_i = 0;
+  bool inList = 0;
+  short i, m, n = 0;
+  // iterate over kernel
+  for (i = 0; i < KL_VOL; i++) {
+    // in_buf contains the shifted indices
+    in_buf.x = in.x + kl->off[i].x;
+    in_buf.y = in.y + kl->off[i].y;
+    in_buf.z = in.z + kl->off[i].z;
+    // ctl_i contains the CTList index for shifted indices
+    ctl_i = voxToCTListIdx(in_buf);
+    // checking if already in ct_in list
+    inList = 0;
+    for (m = 0; m < n; m++) {
+      if (ct_in[m] == ctl_i) {
+        inList = 1;
+        break;
       }
+    }
+    // if not in list, check if out of bounds
+    if (!inList) {
+      if (!checkOOB(in_buf)) { // if not oob
+        addInToCTList(voxToCTListIn(in_buf), in, vox, ct_l, ctl_i);
+        ct_in[n] = ctl_i;
+        n++;
+      }
+    }
+  }
+}
 
-  return ct_l;
+void initCTList(ComputeTensor *ct_l[CT_NUM], SparseTensor *st, Kernel *kl) {
+  unsigned short m, p;
+  // iterate over list of voxels to place in ct
+  for (m = 0; m < st->num_vox; m++) {
+    addVoxToCTList(st->in[m], &st->vox[m], ct_l, kl);
+  }
+  for (p = 0; p < CT_NUM; p++) {
+    if (ct_l[p]) {
+      printf("%d,%d: %d,%d,%d\n", p, ct_l[p]->n, ct_l[p]->loc.x, ct_l[p]->loc.y,
+             ct_l[p]->loc.z);
+    }
+  }
 }
 
 #endif /* CONV3D_H_ */

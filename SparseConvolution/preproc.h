@@ -9,13 +9,37 @@
 #define PREPROC_H_
 #include <fstream>
 #include <stdbool.h>
+
+#define SH_X 41
+#define SH_Y 800
+#define SH_Z 1408
+
+#define MAX_KL 3 // for allocation
+#define KL_X 3
+#define KL_Y 3
+#define KL_Z 3
+#define KL_VOL (KL_X * KL_Y * KL_Z)
+
+#define CT_DIV_X 8
+#define CT_DIV_Y 8
+#define CT_DIV_Z 8
+#define CT_NUM (CT_DIV_X * CT_DIV_Y * CT_DIV_Z)
+
+// shape for all ct's
+#define CT_SH_X (SH_X / CT_DIV_X)
+#define CT_SH_Y (SH_Y / CT_DIV_Y)
+#define CT_SH_Z (SH_Z / CT_DIV_Z)
+
+#define MAX_VOX 100000
+#define MAX_VOX_CT 1500                // arbitrary
+#define MAX_R_CT (MAX_VOX_CT * KL_VOL) // max number of rules
 struct Voxel {
   float x_m, y_m, z_m, r_m; // xyz medians and reflectance means
   int n;                    // number of points
 };
 
 struct Indice {
-  int x, y, z;
+  short x, y, z;
 };
 
 struct Rule {
@@ -23,34 +47,34 @@ struct Rule {
   int x, y, z;
   // [3][3][3] index of Vin affected by each Kernel weight
   // index ties back to voxel list in sparsetensor
-  int ***m;
+  // int m[KL_VOL];
+  int m[3][3][3];
 };
 
 struct RuleBook {
   // rules
-  Rule *r;
+  Rule r[MAX_R_CT];
   // number of rules
   int n;
 };
 
 struct SparseTensor {
-  int num_vox;     // num_voxels (data_shape)
-  int sh[3];       // sparse_shape
-  int b_sz;        // batch_size
-  Voxel *vox;      // features_numpoints (voxels), dynamically allocated
-  int ***idxMat;   // dynamically allocated index matrix
-  int ***idxPairs; // dynamically allocated index pair matrix
-  int **in;        // indices, dynamically allocated
+  int num_vox;        // num_voxels (data_shape)
+  int sh[3];          // sparse_shape
+  unsigned char b_sz; // batch_size
+  Voxel vox[MAX_VOX]; // features_numpoints (voxels)
+  Indice in[MAX_VOX]; // indices, dynamically allocated
 };
 
 struct ComputeTensor {
-  unsigned short sh[3];  // shape of the compute unit
-  unsigned short loc[3]; // absolute location of the tensor
-  unsigned short n = -1; // index for voxels
-  Voxel *vox; // voxels inside shape and at the edge (within kernel half-lenght)
-  Indice *in; // indices for above voxels (NEW STRUCT)
-              //  _Bool *e;   // 1 if outside ct shape (edge), 0 if inside
-  RuleBook *rb; // rulebook
+  Indice loc;            // absolute location of the tensor
+  unsigned short n = 0;  // index for voxels
+  Voxel vox[MAX_VOX_CT]; // voxels inside shape and at the edge (within kernel
+                         // half-lenght)
+  Indice in[MAX_VOX_CT]; // indices for above voxels (NEW STRUCT)
+                         //  _Bool *e;   // 1 if outside ct shape (edge), 0 if
+                         //  inside
+  RuleBook rb;           // rulebook
 };
 
 class DataImporter {
@@ -60,7 +84,7 @@ public:
     fin >> st.num_vox;
     fin.close();
     read_indices();
-    read_sparse_shape();
+    // read_sparse_shape();
     read_batch_size();
     read_features();
   }
@@ -70,16 +94,12 @@ private:
   void read_indices() {
     std::ifstream fin("../SparseConvolution/data/indices.csv");
     char cbuf;
-    int **in_buf = (int **)malloc(st.num_vox * sizeof(int *));
     // iterate lines
     for (int i = 0; i < st.num_vox; i++) {
-      // allocate memory
-      in_buf[i] = (int *)malloc(3 * sizeof(int));
       // read line
-      fin >> in_buf[i][0] >> cbuf >> in_buf[i][1] >> cbuf >> in_buf[i][2];
+      fin >> st.in[i].x >> cbuf >> st.in[i].y >> cbuf >> st.in[i].z;
     }
     fin.close();
-    st.in = in_buf;
   }
   void read_sparse_shape() {
     std::ifstream fin("../SparseConvolution/data/sparse_shape.csv");
@@ -95,15 +115,13 @@ private:
   void read_features() {
     std::ifstream fin("../SparseConvolution/data/features_numpoints.csv");
     char cbuf;
-    Voxel *vbuf = (Voxel *)malloc(st.num_vox * sizeof(Voxel));
     // iterate lines
     for (int i = 0; i < st.num_vox; i++) {
       // read line
-      fin >> vbuf[i].x_m >> cbuf >> vbuf[i].y_m >> cbuf >> vbuf[i].z_m >>
-          cbuf >> vbuf[i].r_m >> cbuf >> vbuf[i].n;
+      fin >> st.vox[i].x_m >> cbuf >> st.vox[i].y_m >> cbuf >> st.vox[i].z_m >>
+          cbuf >> st.vox[i].r_m >> cbuf >> st.vox[i].n;
     }
     fin.close();
-    st.vox = vbuf;
   }
   SparseTensor st;
 };

@@ -17,10 +17,10 @@ struct Kernel {
   int vol;                       // vol of kernel
   int x = 0, y = 0, z = 0;       // xyz location of kernel
   int m[MAX_KL][MAX_KL][MAX_KL]; // kernel matrix
-  Indice off[KL_VOL];
+  Position off[KL_VOL];
 };
 
-bool checkOOB(Indice in) {
+bool checkOOB(Position in) {
   bool ret = 1;
   if (in.x >= 0 && in.x < SH_X)
     if (in.y >= 0 && in.y < SH_Y)
@@ -156,26 +156,26 @@ void conv4(ComputeTensor *ct_l[CT_NUM], Kernel *kl, const char *f) {
   }
 }
 
-int voxToCTListIdx(Indice in) {
-  Indice ret;
+int voxToCTListIdx(Position pos) {
+  Position ret;
   int ct_l_i;
-  ret.x = in.x / CT_SH_X;
-  ret.y = in.y / CT_SH_Y;
-  ret.z = in.z / CT_SH_Z;
+  ret.x = pos.x / CT_SH_X;
+  ret.y = pos.y / CT_SH_Y;
+  ret.z = pos.z / CT_SH_Z;
   // x + (y*x_max) + (z*x_max*y_max)
   ct_l_i = ret.x + (ret.y * CT_DIV_X) + (ret.z * CT_DIV_X * CT_DIV_Y);
   return ct_l_i;
 }
 
-Indice voxToCTListIn(Indice in) {
-  Indice ret;
-  ret.x = in.x / CT_SH_X;
-  ret.y = in.y / CT_SH_Y;
-  ret.z = in.z / CT_SH_Z;
+Position voxToCTListIn(Position pos) {
+  Position ret;
+  ret.x = pos.x / CT_SH_X;
+  ret.y = pos.y / CT_SH_Y;
+  ret.z = pos.z / CT_SH_Z;
   return ret;
 }
 
-void addInToCTList(Indice ct_in, Indice in, Voxel *vox,
+void addInToCTList(Position ct_in, Position pos, Voxel *vox,
                    ComputeTensor *ct[CT_NUM], int ctl_i) {
   // ADD VOXEL TO CT
   // ct_n = ct_l[ct_l_i]->n;
@@ -189,23 +189,23 @@ void addInToCTList(Indice ct_in, Indice in, Voxel *vox,
     ct[ctl_i]->loc.z = ct_in.z * CT_SH_Z;
   }
   ct[ctl_i]->vox[ct[ctl_i]->n] = *vox;
-  ct[ctl_i]->in[ct[ctl_i]->n] = in;
+  ct[ctl_i]->in[ct[ctl_i]->n] = pos;
   ct[ctl_i]->n++;
 }
 
-void addVoxToCTList(Indice in, Voxel *vox, ComputeTensor *ct_l[CT_NUM],
+void addVoxToCTList(Position pos, Voxel *vox, ComputeTensor *ct_l[CT_NUM],
                     Kernel *kl) {
   short ct_in[8] = {0}; // buffer for non-reapeating ct's for each voxel
-  Indice in_buf = {0, 0, 0};
+  Position in_buf = {0, 0, 0};
   int ctl_i = 0;
   bool inList = 0;
   short i, m, n = 0;
   // iterate over kernel
   for (i = 0; i < KL_VOL; i++) {
     // in_buf contains the shifted indices
-    in_buf.x = in.x + kl->off[i].x;
-    in_buf.y = in.y + kl->off[i].y;
-    in_buf.z = in.z + kl->off[i].z;
+    in_buf.x = pos.x + kl->off[i].x;
+    in_buf.y = pos.y + kl->off[i].y;
+    in_buf.z = pos.z + kl->off[i].z;
     // ctl_i contains the CTList index for shifted indices
     ctl_i = voxToCTListIdx(in_buf);
     // checking if already in ct_in list
@@ -219,7 +219,7 @@ void addVoxToCTList(Indice in, Voxel *vox, ComputeTensor *ct_l[CT_NUM],
     // if not in list, check if out of bounds
     if (!inList) {
       if (!checkOOB(in_buf)) { // if not oob
-        addInToCTList(voxToCTListIn(in_buf), in, vox, ct_l, ctl_i);
+        addInToCTList(voxToCTListIn(in_buf), pos, vox, ct_l, ctl_i);
         ct_in[n] = ctl_i;
         n++;
       }

@@ -38,7 +38,7 @@ struct Voxel {
   int n;                    // number of points
 };
 
-struct Indice {
+struct Position {
   short x, y, z;
 };
 
@@ -63,15 +63,15 @@ struct SparseTensor {
   int sh[3];          // sparse_shape
   unsigned char b_sz; // batch_size
   Voxel vox[MAX_VOX]; // features_numpoints (voxels)
-  Indice in[MAX_VOX]; // indices, dynamically allocated
+  Position in[MAX_VOX]; // indices, dynamically allocated
 };
 
 struct ComputeTensor {
-  Indice loc;            // absolute location of the tensor
+  Position loc;            // absolute location of the tensor
   unsigned short n = 0;  // index for voxels
   Voxel vox[MAX_VOX_CT]; // voxels inside shape and at the edge (within kernel
                          // half-lenght)
-  Indice in[MAX_VOX_CT]; // indices for above voxels (NEW STRUCT)
+  Position in[MAX_VOX_CT]; // indices for above voxels (NEW STRUCT)
                          //  _Bool *e;   // 1 if outside ct shape (edge), 0 if
                          //  inside
   RuleBook rb;           // rulebook

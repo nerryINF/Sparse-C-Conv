@@ -1,18 +1,29 @@
 #include "conv3d.h"
 #include <iostream>
+#include <stdlib.h>
 using namespace std;
 
 int main() {
   DataImporter di;
   SparseTensor st = di.getTensor();
   // genIdxMatrix(&st);
-  Kernel *kl = new Kernel;
-  initKernel(kl, 3, 3, 3);
-  ComputeTensor *ct_l[CT_NUM] = {NULL};
+  Kernel *kl = new Kernel(3, 3, 3);
+  ComputeUnit *ct_l[CT_NUM] = {NULL};
+  ComputeUnit *ct = 0;
   initCTList(ct_l, &st, kl);
+  // conv
+  system("rm ../SparseConvolution/data/conv5.csv");
+  // iterate over ct's
+  for (int m = 0; m < CT_NUM; m++) {
+    if (ct_l[m]) {
+      ct = ct_l[m];
+      ct->conv(*kl);
+      ct->write("../SparseConvolution/data/conv5.csv");
+    }
+  }
   // float cm[SH_X][SH_Y][SH_Z] = {0};
 
-  conv4(ct_l, kl, "../SparseConvolution/data/conv4.csv");
+  // conv4(ct_l, kl, "../SparseConvolution/data/conv4.csv");
   //  RuleBook *rb = genRuleBook(&st, kl);
   //  conv3(&st, kl, rb, "../SparseConvolution/data/conv3.csv");
   //   float ***c_m = conv2(&st, kl);

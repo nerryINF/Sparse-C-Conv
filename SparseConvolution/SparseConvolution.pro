@@ -9,6 +9,7 @@ SOURCES += \
         main.cpp
 
 HEADERS += \
+    computeunit.h \
     conv3d.h \
     conv3d.h \
     preproc.h

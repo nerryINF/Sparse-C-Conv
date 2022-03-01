@@ -29,17 +29,41 @@
 #define CT_SH_X (SH_X / CT_DIV_X)
 #define CT_SH_Y (SH_Y / CT_DIV_Y)
 #define CT_SH_Z (SH_Z / CT_DIV_Z)
-
+#define CT_VOL (CT_SH_X * CT_SH_Y * CT_SH_Z)
 #define MAX_VOX 100000
 #define MAX_VOX_CT 1500                // arbitrary
 #define MAX_R_CT (MAX_VOX_CT * KL_VOL) // max number of rules
-struct Voxel {
-  float x_m, y_m, z_m, r_m; // xyz medians and reflectance means
-  int n;                    // number of points
+
+class Position {
+public:
+  Position() {
+    x = 0;
+    y = 0;
+    z = 0;
+  }
+  Position(short _x, short _y, short _z) {
+    x = _x;
+    y = _y;
+    z = _z;
+  }
+
+  Position operator+(Position _pos) {
+    Position ret(x + _pos.x, y + _pos.y, z + _pos.z);
+    return ret;
+  }
+  Position operator-(Position _pos) {
+    Position ret(x - _pos.x, y - _pos.y, z - _pos.z);
+    return ret;
+  }
+
+  short x, y, z;
 };
 
-struct Position {
-  short x, y, z;
+class Voxel {
+public:
+  Position pos;
+  float x_m, y_m, z_m, r_m; // xyz medians and reflectance means
+  int n;                    // number of points
 };
 
 struct Rule {
@@ -59,22 +83,11 @@ struct RuleBook {
 };
 
 struct SparseTensor {
-  int num_vox;        // num_voxels (data_shape)
-  int sh[3];          // sparse_shape
-  unsigned char b_sz; // batch_size
-  Voxel vox[MAX_VOX]; // features_numpoints (voxels)
+  int num_vox;          // num_voxels (data_shape)
+  int sh[3];            // sparse_shape
+  unsigned char b_sz;   // batch_size
+  Voxel vox[MAX_VOX];   // features_numpoints (voxels)
   Position in[MAX_VOX]; // indices, dynamically allocated
-};
-
-struct ComputeTensor {
-  Position loc;            // absolute location of the tensor
-  unsigned short n = 0;  // index for voxels
-  Voxel vox[MAX_VOX_CT]; // voxels inside shape and at the edge (within kernel
-                         // half-lenght)
-  Position in[MAX_VOX_CT]; // indices for above voxels (NEW STRUCT)
-                         //  _Bool *e;   // 1 if outside ct shape (edge), 0 if
-                         //  inside
-  RuleBook rb;           // rulebook
 };
 
 class DataImporter {
@@ -98,6 +111,7 @@ private:
     for (int i = 0; i < st.num_vox; i++) {
       // read line
       fin >> st.in[i].x >> cbuf >> st.in[i].y >> cbuf >> st.in[i].z;
+      st.vox[i].pos = st.in[i];
     }
     fin.close();
   }

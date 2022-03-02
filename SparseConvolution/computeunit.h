@@ -21,9 +21,11 @@ public:
     for (i = -x_h; i <= x_h; i++)
       for (j = -y_h; j <= y_h; j++)
         for (k = -z_h; k <= z_h; k++) {
-          off[n].x = i;
-          off[n].y = j;
-          off[n].z = k;
+          Position pbuf(i, j, k);
+          off[n] = pbuf;
+          pbuf = pbuf + Position(1, 1, 1);
+          // pbuf.print();
+          // printf(": %d\n", n);
           n++;
         }
   }

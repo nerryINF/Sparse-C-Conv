@@ -31,7 +31,7 @@ int voxToCTListIdx(Position pos) {
   return ct_l_i;
 }
 
-Position voxToCTListIn(Position pos) {
+Position voxToCTListPos(Position pos) {
   Position ret;
   ret.x = pos.x / CT_SH_X;
   ret.y = pos.y / CT_SH_Y;
@@ -39,11 +39,12 @@ Position voxToCTListIn(Position pos) {
   return ret;
 }
 
-void addInToCTList(Position ct_in, Voxel *vox, ComputeUnit *ct[CT_NUM],
-                   int ctl_i) {
+void addInToCTList(Position pbuf, Voxel *vox, ComputeUnit *ct[CT_NUM]) {
   // ADD VOXEL TO CT
   // ct_n = ct_l[ct_l_i]->n;
   // check if ct is initialized
+  Position ct_in = voxToCTListPos(pbuf);
+  int ctl_i = voxToCTListIdx(pbuf);
   if (!ct[ctl_i]) {
     // init ct
     Position pos_ct(ct_in.x * CT_SH_X, ct_in.y * CT_SH_Y, ct_in.z * CT_SH_Z);
@@ -76,7 +77,7 @@ void addVoxToCTList(Voxel *vox, ComputeUnit *ct_l[CT_NUM], Kernel *kl) {
     // if not in list, check if out of bounds
     if (!inList) {
       if (!checkOOB(in_buf)) { // if not oob
-        addInToCTList(voxToCTListIn(in_buf), vox, ct_l, ctl_i);
+        addInToCTList(in_buf, vox, ct_l);
         ct_in[n] = ctl_i;
         n++;
       }
@@ -84,8 +85,90 @@ void addVoxToCTList(Voxel *vox, ComputeUnit *ct_l[CT_NUM], Kernel *kl) {
   }
 }
 
+int boundCheck(Voxel *vox) {
+  int scen = 0;
+  int px = 1, py = 1, pz = 1;
+  // find cu coords
+  Position cuPos = voxToCTListPos(vox->pos);
+  // find relative vox coords
+  Position relPos = vox->pos - cuPos;
+  // if <=0 or >=shape-1  we are at an edge
+  switch (relPos.x) {
+  case 0:
+    px = 0;
+    break;
+  case CT_SH_X - 1:
+    px = 2;
+    break;
+  }
+  switch (relPos.y) {
+  case 0:
+    py = 0;
+    break;
+  case CT_SH_Y - 1:
+    py = 2;
+    break;
+  }
+  switch (relPos.z) {
+  case 0:
+    pz = 0;
+    break;
+  case CT_SH_Z - 1:
+    pz = 2;
+    break;
+  }
+  scen = px * 9 + py * 3 + pz;
+  return scen;
+}
+
+Position comb(Position pos) {
+  // if (pos.x != 1 && pos.y != 1 && pos.z != 1)
+  std::cout << pos.x << "," << pos.y << "," << pos.z << std::endl;
+  Position pos1 = pos;
+  Position pos2 = pos;
+  if (pos.x == 0 || pos.x == 2) {
+    pos.x = 1;
+    comb(pos);
+  }
+  if (pos.y == 0 || pos.y == 2) {
+    pos1.y = 1;
+    comb(pos1);
+  }
+  if (pos.z == 0 || pos.z == 2) {
+    pos2.z = 1;
+    comb(pos2);
+  }
+  return pos;
+}
+
 // 6+27 checks
-void addVoxToCTList2(Voxel *vox, ComputeUnit *ct_l[CT_NUM], Kernel *kl) {}
+void addVoxToCTList2(Voxel *vox, ComputeUnit *ct_l[CT_NUM], Kernel *kl) {
+  // declare pos buffer
+  Position pbase = vox->pos;
+  Position pbuf = pbase;
+  // add to main CU
+  addInToCTList(pbuf, vox, ct_l);
+  // XYZ, 0 is in bounds, 1 is at edge below, 2 above
+  int scen = boundCheck(vox);
+  switch (scen) {
+  case 0:
+    // 0 1 3 4 9 10 12
+    pbuf = pbase + kl->off[0];
+    addInToCTList(pbuf, vox, ct_l);
+    pbuf = pbase + kl->off[1];
+    addInToCTList(pbuf, vox, ct_l);
+    pbuf = pbase + kl->off[0];
+    addInToCTList(pbuf, vox, ct_l);
+    pbuf = pbase + kl->off[1];
+    addInToCTList(pbuf, vox, ct_l);
+    pbuf = pbase + kl->off[0];
+    addInToCTList(pbuf, vox, ct_l);
+    pbuf = pbase + kl->off[1];
+    addInToCTList(pbuf, vox, ct_l);
+
+    break;
+  }
+}
 
 void initCTList(ComputeUnit *ct_l[CT_NUM], SparseTensor *st, Kernel *kl) {
   unsigned short m, p;

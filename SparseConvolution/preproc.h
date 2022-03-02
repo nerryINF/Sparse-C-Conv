@@ -34,6 +34,7 @@
 #define MAX_VOX_CT 1500                // arbitrary
 #define MAX_R_CT (MAX_VOX_CT * KL_VOL) // max number of rules
 
+#include <iostream>
 class Position {
 public:
   Position() {
@@ -55,7 +56,7 @@ public:
     Position ret(x - _pos.x, y - _pos.y, z - _pos.z);
     return ret;
   }
-
+  void print() { std::cout << x << "," << y << "," << z; }
   short x, y, z;
 };
 

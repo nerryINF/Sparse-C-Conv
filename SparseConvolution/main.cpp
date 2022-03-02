@@ -11,6 +11,8 @@ int main() {
   ComputeUnit *ct_l[CT_NUM] = {NULL};
   ComputeUnit *ct = 0;
   initCTList(ct_l, &st, kl);
+  //
+  comb(Position(1, 1, 2));
   // conv
   system("rm ../SparseConvolution/data/conv5.csv");
   // iterate over ct's

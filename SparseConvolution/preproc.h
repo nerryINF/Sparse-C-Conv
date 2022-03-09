@@ -20,9 +20,9 @@
 #define KL_Z 3
 #define KL_VOL (KL_X * KL_Y * KL_Z)
 
-#define CT_DIV_X 8
-#define CT_DIV_Y 8
-#define CT_DIV_Z 8
+#define CT_DIV_X 2
+#define CT_DIV_Y 2
+#define CT_DIV_Z 2
 #define CT_NUM (CT_DIV_X * CT_DIV_Y * CT_DIV_Z)
 
 // shape for all ct's
@@ -31,7 +31,7 @@
 #define CT_SH_Z (SH_Z / CT_DIV_Z)
 #define CT_VOL (CT_SH_X * CT_SH_Y * CT_SH_Z)
 #define MAX_VOX 100000
-#define MAX_VOX_CT 1500                // arbitrary
+#define MAX_VOX_CT 15000               // arbitrary
 #define MAX_R_CT (MAX_VOX_CT * KL_VOL) // max number of rules
 
 #include <iostream>
@@ -62,25 +62,10 @@ public:
 
 class Voxel {
 public:
-  Position pos;
-  float x_m, y_m, z_m, r_m; // xyz medians and reflectance means
-  int n;                    // number of points
-};
-
-struct Rule {
-  // the xyz Vout coordinates
-  int x, y, z;
-  // [3][3][3] index of Vin affected by each Kernel weight
-  // index ties back to voxel list in sparsetensor
-  // int m[KL_VOL];
-  int m[3][3][3];
-};
-
-struct RuleBook {
-  // rules
-  Rule r[MAX_R_CT];
-  // number of rules
-  int n;
+  Position pos = {0, 0, 0};
+  float x_m = 0.0, y_m = 0.0, z_m = 0.0,
+        r_m = 0.0; // xyz medians and reflectance means
+  int n = 0;       // number of points
 };
 
 struct SparseTensor {

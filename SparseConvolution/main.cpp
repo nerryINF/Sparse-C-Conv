@@ -4,24 +4,20 @@
 using namespace std;
 
 int main() {
-  DataImporter di;
-  SparseTensor st = di.getTensor();
+  DataImporter *di = new DataImporter;
+  SparseTensor st = di->getTensor();
   // genIdxMatrix(&st);
   Kernel *kl = new Kernel(3, 3, 3);
-  ComputeUnit *ct_l[CT_NUM] = {NULL};
-  ComputeUnit *ct = 0;
-  initCTList(ct_l, &st, kl);
+  ComputeUnitList cu_l(kl);
+  // iterate voxels
+  int m;
+  for (m = 0; m < st.num_vox; m++) {
+    cu_l.addVox(&st.vox[m]);
+  }
+  cu_l.display();
 
   // conv
-  system("rm ../SparseConvolution/data/conv7.csv");
-  // iterate over ct's
-  for (int m = 0; m < CT_NUM; m++) {
-    if (ct_l[m]) {
-      if (m == 122) {
-        printf("\n");
-      }
-      ct = ct_l[m];
-      ct->write("../SparseConvolution/data/conv7.csv");
-    }
-  }
+  system("rm ../SparseConvolution/data_test/conv8.csv");
+  cu_l.conv("../SparseConvolution/data_test/conv8.csv");
+  delete kl;
 }

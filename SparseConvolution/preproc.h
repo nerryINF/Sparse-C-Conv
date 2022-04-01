@@ -58,9 +58,9 @@ public:
   }
   Position toCURelativePosition(Position cu_pos) {
     int bufx, bufy, bufz;
-    bufx = (x - cu_pos.x) % CT_SH_X;
-    bufy = (y - cu_pos.y) % CT_SH_Y;
-    bufz = (z - cu_pos.z) % CT_SH_Z;
+    bufx = (x - cu_pos.x);
+    bufy = (y - cu_pos.y);
+    bufz = (z - cu_pos.z);
     return Position(bufx, bufy, bufz);
   }
   int toIdx(int sh_x, int sh_y, int sh_z) {

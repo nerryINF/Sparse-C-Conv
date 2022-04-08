@@ -48,7 +48,7 @@ public:
   }
 
   void procVoxel(Voxel vox) {
-    int i, j, k;
+    int i, j, k, outIdx;
     float wt;
     Position pbuf;
     // add to list
@@ -72,8 +72,8 @@ public:
           pbuf = Position(i, j, k) - vox.getPos().toCURelativePosition(_loc);
           wt = _kl->posToWt(pbuf);
           pbuf = Position(i, j, k).toCURelativePosition();
-          int outIdx = pbuf.toCUIdx();
-          _out[outIdx] += wt * (vox._r_m + vox._x_m + vox._y_m + vox._z_m);
+          outIdx = pbuf.toCUIdx();
+          _out[outIdx] += wt * 2 * (vox._r_m + vox._x_m + vox._y_m + vox._z_m);
         }
     _n++;
   }
@@ -120,7 +120,7 @@ private:
   Position _loc;       // absolute location of the unit
   unsigned int _n = 0; // counter-1 for voxels
   Voxel vlist[MAX_VOX_CU];
-  float _out[CT_VOL + 1] = {0};
+  float _out[CT_VOL] = {0};
   int min[3], max[3];
   // debugging
   int nonempty = 0;

@@ -17,7 +17,7 @@ int main() {
   cu_l.display();
 
   // conv
-  system("rm ../SparseConvolution/data_test/conv8.csv");
-  cu_l.conv("../SparseConvolution/data_test/conv8.csv");
+  system("rm ../SparseConvolution/data/conv9.csv");
+  cu_l.conv("../SparseConvolution/data/conv9.csv");
   delete kl;
 }

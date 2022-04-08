@@ -10,9 +10,11 @@
 #include <fstream>
 #include <stdbool.h>
 
-#define SH_X 8
-#define SH_Y 8
-#define SH_Z 8
+#define CEILING(x, y) (((x) + (y)-1) / (y))
+
+#define SH_X 41
+#define SH_Y 800
+#define SH_Z 1408
 
 #define MAX_KL 3 // for allocation
 #define KL_X 3
@@ -20,15 +22,15 @@
 #define KL_Z 3
 #define KL_VOL (KL_X * KL_Y * KL_Z)
 
-#define CT_DIV_X 2
-#define CT_DIV_Y 2
-#define CT_DIV_Z 2
+#define CT_SH_X 10
+#define CT_SH_Y 100
+#define CT_SH_Z 100
+
+#define CT_DIV_X CEILING(SH_X, CT_SH_X)
+#define CT_DIV_Y CEILING(SH_Y, CT_SH_Y)
+#define CT_DIV_Z CEILING(SH_Z, CT_SH_Z)
 #define CT_NUM (CT_DIV_X * CT_DIV_Y * CT_DIV_Z)
 
-// shape for all ct's
-#define CT_SH_X (SH_X / CT_DIV_X)
-#define CT_SH_Y (SH_Y / CT_DIV_Y)
-#define CT_SH_Z (SH_Z / CT_DIV_Z)
 #define CT_VOL (CT_SH_X * CT_SH_Y * CT_SH_Z)
 #define MAX_VOX 100000
 #define MAX_VOX_CU 1500                // arbitrary
@@ -155,8 +157,8 @@ struct SparseTensor {
 class DataImporter {
 public:
   DataImporter() {
-    // TODO: wesh
-    std::ifstream fin("../SparseConvolution/data_test/data_shape.csv");
+    // TODO: wesh (also change SH and other macros to be assigned here)
+    std::ifstream fin("../SparseConvolution/data/data_shape.csv");
     fin >> st.num_vox;
     fin.close();
     read_indices();
@@ -169,7 +171,7 @@ public:
 
 private:
   void read_indices() {
-    std::ifstream fin("../SparseConvolution/data_test/indices.csv");
+    std::ifstream fin("../SparseConvolution/data/indices.csv");
     char cbuf;
     // iterate lines
     for (int i = 0; i < st.num_vox; i++) {
@@ -180,18 +182,18 @@ private:
     fin.close();
   }
   void read_sparse_shape() {
-    std::ifstream fin("../SparseConvolution/data_test/sparse_shape.csv");
+    std::ifstream fin("../SparseConvolution/data/sparse_shape.csv");
     char cbuf;
     fin >> st.sh[0] >> cbuf >> st.sh[1] >> cbuf >> st.sh[2];
     fin.close();
   }
   void read_batch_size() {
-    std::ifstream fin("../SparseConvolution/data_test/batch_size.csv");
+    std::ifstream fin("../SparseConvolution/data/batch_size.csv");
     fin >> st.b_sz;
     fin.close();
   }
   void read_features() {
-    std::ifstream fin("../SparseConvolution/data_test/features_numpoints.csv");
+    std::ifstream fin("../SparseConvolution/data/features_numpoints.csv");
     char cbuf;
     float x_m, y_m, z_m, r_m;
     int n;

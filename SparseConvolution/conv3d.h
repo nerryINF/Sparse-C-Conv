@@ -128,7 +128,7 @@ public:
   }
   void display() {
     int m;
-    for (m = 0; m < CT_NUM; m++) {
+    for (m = 0; m < CU_NUM; m++) {
       // check if ct is initialized
       if (CUs[m]) {
         CUs[m]->getCULoc().print();
@@ -138,7 +138,7 @@ public:
   }
   void conv(const char *f) {
     int m;
-    for (m = 0; m < CT_NUM; m++) {
+    for (m = 0; m < CU_NUM; m++) {
       // check if ct is initialized
       if (CUs[m]) {
         CUs[m]->write(f);
@@ -150,7 +150,7 @@ private:
   //**** funs
   void addToCuList(short p) {
     // position of CU associated with offsetted position
-    Position cu_pos = (_vox->getPos() + _kl->getoff()[p]).toCUPosition();
+    Position cu_pos = (_vox->getPos() + _kl->off[p]).toCUPosition();
     int ctl_i = cu_pos.toCUListIdx();
     // check if ct is initialized
     if (!CUs[ctl_i]) {
@@ -175,7 +175,7 @@ private:
       addToCuList(posb[i]);
   }
   //**** variables
-  ComputeUnit *CUs[CT_NUM] = {0};
+  ComputeUnit *CUs[CU_NUM] = {0};
   Kernel *_kl;
   Voxel *_vox; // voxel currently being computed
 };

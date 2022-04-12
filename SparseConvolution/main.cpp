@@ -3,11 +3,20 @@
 #include <stdlib.h>
 using namespace std;
 
-int main() {
-  DataImporter *di = new DataImporter;
+int main(int argc, char *argv[]) {
+  // input args
+  if (argc < 3) {
+    cout << "not enough arguments" << endl;
+    return 1;
+  }
+  string folder = argv[1];
+  folder += "/";
+  string out = argv[2];
+  //
+  DataImporter *di = new DataImporter(folder);
   SparseTensor st = di->getTensor();
   // genIdxMatrix(&st);
-  Kernel *kl = new Kernel(3, 3, 3);
+  Kernel *kl = new Kernel(folder);
   ComputeUnitList cu_l(kl);
   // iterate voxels
   int m;
@@ -17,7 +26,7 @@ int main() {
   cu_l.display();
 
   // conv
-  system("rm ../SparseConvolution/data/conv9.csv");
-  cu_l.conv("../SparseConvolution/data/conv9.csv");
+  system(("rm -f " + folder + out).c_str());
+  cu_l.conv((folder + out).c_str());
   delete kl;
 }

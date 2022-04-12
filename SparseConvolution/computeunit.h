@@ -1,23 +1,30 @@
 #ifndef COMPUTEUNIT_H
 #define COMPUTEUNIT_H
 #include "preproc.h"
+#include <bits/stdc++.h>
 
 class Kernel {
 public:
-  Kernel(const int _x_l, const int _y_l, const int _z_l) {
+  Kernel(std::string _f) {
+    std::ifstream fin(_f + "/kernel.csv");
     int i, j, k, n = 0;
-    x_l = _x_l;
-    y_l = _y_l;
-    z_l = _z_l;
+    // read kernel vol in first line
+    fin >> KL_VOL;
+    // decalre
+    m = new float[KL_VOL];
+    off = new Position[KL_VOL];
+    for (i = 0; i < KL_VOL; i++) {
+      fin >> m[i];
+    }
+
+    x_l = std::cbrt(KL_VOL);
+    y_l = x_l;
+    z_l = x_l;
     x_h = (x_l - 1) / 2;
     y_h = (y_l - 1) / 2;
     z_h = (z_l - 1) / 2;
     vol = x_l * y_l * z_l;
-    // default kernel
-    for (i = 0; i < KL_VOL; i++) {
-      m[i] = 1.0;
-    }
-
+    // gen offsets
     for (i = -x_h; i <= x_h; i++)
       for (j = -y_h; j <= y_h; j++)
         for (k = -z_h; k <= z_h; k++) {
@@ -28,16 +35,14 @@ public:
   }
   float posToWt(Position pos) {
     pos = pos + Position(1, 1, 1);
-    return m[pos.toIdx(x_l, y_l, z_l)];
+    return m[pos.toIdx(x_l, y_l)];
   }
-  Position *getoff() { return off; }
   int x_l, y_l, z_l;       // xyz sizes of kernel
   int x_h, y_h, z_h;       // xyz half-lenghts
   int vol;                 // vol of kernel
   int x = 0, y = 0, z = 0; // xyz location of kernel
-  float m[KL_VOL];         // kernel matrix
-private:
-  Position off[KL_VOL];
+  float *m;                // kernel matrix
+  Position *off;
 };
 
 class ComputeUnit {
@@ -73,23 +78,22 @@ public:
           wt = _kl->posToWt(pbuf);
           pbuf = Position(i, j, k).toCURelativePosition();
           outIdx = pbuf.toCUIdx();
-          _out[outIdx] += wt * 2 * (vox._r_m + vox._x_m + vox._y_m + vox._z_m);
+          _out[outIdx] += wt * (vox._r_m + vox._x_m + vox._y_m + vox._z_m);
         }
     _n++;
   }
   void write(const char *f) {
     std::ofstream of(f, std::ios_base::app);
-    for (int i = 0; i < CT_VOL; i++) {
+    for (int i = 0; i < CU_VOL; i++) {
       if (_out[i] != 0) {
-        nonempty++;
-        Position pos = deflat(i);
+        Position pos = toPos(i);
         pos = pos + _loc;
         of << pos.x << ',' << pos.y << ',' << pos.z << ',' << _out[i] << '\n';
       }
     }
   }
   void reset() {
-    for (int i = 0; i < CT_VOL; i++) {
+    for (int i = 0; i < CU_VOL; i++) {
       _out[i] = {0};
     }
     _n = 0;
@@ -106,24 +110,20 @@ private:
     if (max_rel >= CU_SH[dim])
       max[dim] = CU_SH[dim] - 1;
   }
-  // TODO: move to Position class
-  Position deflat(int idx) {
+  Position toPos(int idx) {
     Position pos;
-    pos.z = idx / (CT_SH_X * CT_SH_Y);
-    idx -= (pos.z * CT_SH_X * CT_SH_Y);
-    pos.y = idx / CT_SH_X;
-    pos.x = idx % CT_SH_X;
+    pos.z = idx / (CU_SH_X * CU_SH_Y);
+    idx -= (pos.z * CU_SH_X * CU_SH_Y);
+    pos.y = idx / CU_SH_X;
+    pos.x = idx % CU_SH_X;
     return pos;
   }
-
   Kernel *_kl;
   Position _loc;       // absolute location of the unit
   unsigned int _n = 0; // counter-1 for voxels
   Voxel vlist[MAX_VOX_CU];
-  float _out[CT_VOL] = {0};
+  float _out[CU_VOL] = {0};
   int min[3], max[3];
-  // debugging
-  int nonempty = 0;
 };
 
 #endif // COMPUTEUNIT_H

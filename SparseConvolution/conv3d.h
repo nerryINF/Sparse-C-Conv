@@ -13,6 +13,10 @@
 class ComputeUnitList {
 public:
   ComputeUnitList(Kernel *kl) { _kl = kl; }
+  /**
+   * @brief addVox : add a voxel to one or many units depending on its impact
+   * @param vox
+   */
   void addVox(Voxel *vox) {
     _vox = vox;
     // add to main CU
@@ -126,6 +130,9 @@ public:
     }
     }
   }
+  /**
+   * @brief display : print CU location
+   */
   void display() {
     int m;
     for (m = 0; m < CU_NUM; m++) {
@@ -136,6 +143,10 @@ public:
       }
     }
   }
+  /**
+   * @brief conv : convolution on non-empty units
+   * @param f : name of output file
+   */
   void conv(const char *f) {
     int m;
     for (m = 0; m < CU_NUM; m++) {
@@ -147,10 +158,13 @@ public:
   }
 
 private:
-  //**** funs
+  /**
+   * @brief addToCuList : add voxel to list of units
+   * @param p : param of addVox (between 0 and 26) cf README
+   */
   void addToCuList(short p) {
     // position of CU associated with offsetted position
-    Position cu_pos = (_vox->getPos() + _kl->off[p]).toCUPosition();
+    Position cu_pos = (_vox->getPos() + _kl->off[p]).getCUPosition();
     int ctl_i = cu_pos.toCUListIdx();
     // check if ct is initialized
     if (!CUs[ctl_i]) {
@@ -159,14 +173,33 @@ private:
     }
     CUs[ctl_i]->procVoxel(*_vox);
   }
-  //**** multiaddvox
+  /**
+   * @brief multiAddVox : calls addToCuList with p0 (voxel is in a face)
+   * @param p0
+   */
   void multiAddVox(short p0) { addToCuList(p0); }
+  /**
+   * @brief multiAddVox calls addToCuList 3 times (voxel is in an endge)
+   * @param p0
+   * @param p1
+   * @param p2
+   */
   void multiAddVox(short p0, short p1, short p2) {
     int i;
     short posb[3] = {p0, p1, p2};
     for (i = 0; i < 3; i++)
       addToCuList(posb[i]);
   }
+  /**
+   * @brief multiAddVox : calls addToCuList 7 times (voxel is in a vertex)
+   * @param p0
+   * @param p1
+   * @param p2
+   * @param p3
+   * @param p4
+   * @param p5
+   * @param p6
+   */
   void multiAddVox(short p0, short p1, short p2, short p3, short p4, short p5,
                    short p6) {
     int i;
@@ -175,8 +208,9 @@ private:
       addToCuList(posb[i]);
   }
   //**** variables
-  ComputeUnit *CUs[CU_NUM] = {0};
-  Kernel *_kl;
+  ComputeUnit *CUs[CU_NUM] = {
+      0};      // List of pointers to units, empty units points to 0
+  Kernel *_kl; // Kernel
   Voxel *_vox; // voxel currently being computed
 };
 

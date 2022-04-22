@@ -12,13 +12,12 @@ int main(int argc, char *argv[]) {
   string folder = argv[1];
   folder += "/";
   string out = argv[2];
-  //
+  // loading data
   DataImporter *di = new DataImporter(folder);
   SparseTensor st = di->getTensor();
-  // genIdxMatrix(&st);
   Kernel *kl = new Kernel(folder);
   ComputeUnitList cu_l(kl);
-  // iterate voxels
+  // iterate voxels to dispatch in units
   int m;
   for (m = 0; m < st.num_vox; m++) {
     cu_l.addVox(&st.vox[m]);

@@ -35,6 +35,9 @@ int KL_VOL = 0;
 int CU_SH[3] = {CU_SH_X, CU_SH_Y, CU_SH_Z};
 
 #include <iostream>
+/**
+ * @brief The Position class
+ */
 class Position {
 public:
   Position() {
@@ -47,27 +50,55 @@ public:
     y = _y;
     z = _z;
   }
-  Position toCURelativePosition() {
+  /**
+   * @brief getVoxRelativePosition
+   * @return Relative position of voxel % unit to which it belongs
+   */
+  Position getVoxRelativePosition() {
     int bufx, bufy, bufz;
     bufx = x % CU_SH_X;
     bufy = y % CU_SH_Y;
     bufz = z % CU_SH_Z;
     return Position(bufx, bufy, bufz);
   }
-  Position toCURelativePosition(Position cu_pos) {
+  /**
+   * @brief getCURelativePosition
+   * @param cu_pos position of unit
+   * @return Relative position of voxel % unit passed in param
+   */
+  Position getCURelativePosition(Position cu_pos) {
     int bufx, bufy, bufz;
     bufx = (x - cu_pos.x);
     bufy = (y - cu_pos.y);
     bufz = (z - cu_pos.z);
     return Position(bufx, bufy, bufz);
   }
+  /**
+   * @brief toIdx : 3d to 1d index
+   * @param sh_x : spatial shape in x
+   * @param sh_y : spatial shape in y
+   * @return  1d index (in a list)
+   */
   int toIdx(int sh_x, int sh_y) { return x + (y * sh_x) + (z * sh_x * sh_y); }
+  /**
+   * @brief toCUIdx
+   * @return Index of voxel in unit (uses toIx with sh_x=CU_SH_X and
+   * sh_y=CU_SH_Y)
+   */
   int toCUIdx() { return this->toIdx(CU_SH_X, CU_SH_Y); }
+  /**
+   * @brief toCUListIdx
+   * @return index of unit in list of units
+   */
   int toCUListIdx() { // assuming this is a CU position
     Position bufp(x / CU_SH_X, y / CU_SH_Y, z / CU_SH_Z);
     return bufp.toIdx(CU_DIV_X, CU_DIV_Y);
   }
-  Position toCUPosition() { return *this - toCURelativePosition(); }
+  /**
+   * @brief getCUPosition
+   * @return _loc of unit to wich this(voxel) belongs
+   */
+  Position getCUPosition() { return *this - getVoxRelativePosition(); }
   Position operator+(Position _pos) {
     Position ret(x + _pos.x, y + _pos.y, z + _pos.z);
     return ret;
@@ -82,6 +113,10 @@ public:
 
 class Voxel {
 public:
+  /**
+   * @brief init : initialization of voxel with setup of scen value
+   * @param pos : position of voxel in the grid
+   */
   void init(Position pos) {
     _pos = pos;
     boundCheck();
@@ -100,13 +135,23 @@ public:
   int _n = 0;       // number of points
 
 private:
+  /**
+   * @brief _pos : Position of voxel
+   */
   Position _pos;
-  int scen; // boundcheck scenario
-  // returns the position relative to its CU
+  /**
+   * @brief scen boundcheck scenario
+   */
+  int scen;
+  /**
+   * @brief boundCheck returns the position relative to its CU (value from 0 to
+   * 26)
+   */
   void boundCheck() {
+    // scen = XYZ, 0 is in bounds, 1 is at edge below, 2 above
     short px = 1, py = 1, pz = 1;
     // if <=0 or >=shape-1  we are at an edge
-    switch (_pos.toCURelativePosition().x) {
+    switch (_pos.getVoxRelativePosition().x) {
     case 0:
       px = 0;
       break;
@@ -114,7 +159,7 @@ private:
       px = 2;
       break;
     }
-    switch (_pos.toCURelativePosition().y) {
+    switch (_pos.getVoxRelativePosition().y) {
     case 0:
       py = 0;
       break;
@@ -122,7 +167,7 @@ private:
       py = 2;
       break;
     }
-    switch (_pos.toCURelativePosition().z) {
+    switch (_pos.getVoxRelativePosition().z) {
     case 0:
       pz = 0;
       break;

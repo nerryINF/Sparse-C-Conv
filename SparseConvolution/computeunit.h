@@ -2,9 +2,15 @@
 #define COMPUTEUNIT_H
 #include "preproc.h"
 #include <bits/stdc++.h>
-
+/**
+ * @brief The Kernel class
+ */
 class Kernel {
 public:
+  /**
+   * @brief Kernel : loading kernel
+   * @param _f : input file
+   */
   Kernel(std::string _f) {
     std::ifstream fin(_f + "/kernel.csv");
     int i, j, k, n = 0;
@@ -33,8 +39,13 @@ public:
           n++;
         }
   }
+  /**
+   * @brief posToWt : from position to corresponding weight
+   * @param pos : position from which to retrieve the weight
+   * @return : weight at a position
+   */
   float posToWt(Position pos) {
-    pos = pos + Position(1, 1, 1);
+    pos = pos + Position(x_h, y_h, z_h);
     return m[pos.toIdx(x_l, y_l)];
   }
   int x_l, y_l, z_l;       // xyz sizes of kernel
@@ -51,7 +62,10 @@ public:
     _kl = kl;
     _loc = pos;
   }
-
+  /**
+   * @brief procVoxel : process added voxel by calculation the convolution
+   * @param vox : addede voxel to unit
+   */
   void procVoxel(Voxel vox) {
     int i, j, k, outIdx;
     float wt;
@@ -59,12 +73,12 @@ public:
     // add to list
     vlist[_n] = vox;
     // initial checks
-    int x_min_rel = vox.getPos().toCURelativePosition(_loc).x - _kl->x_h;
-    int y_min_rel = vox.getPos().toCURelativePosition(_loc).y - _kl->y_h;
-    int z_min_rel = vox.getPos().toCURelativePosition(_loc).z - _kl->z_h;
-    int x_max_rel = vox.getPos().toCURelativePosition(_loc).x + _kl->x_h;
-    int y_max_rel = vox.getPos().toCURelativePosition(_loc).y + _kl->y_h;
-    int z_max_rel = vox.getPos().toCURelativePosition(_loc).z + _kl->z_h;
+    int x_min_rel = vox.getPos().getCURelativePosition(_loc).x - _kl->x_h;
+    int y_min_rel = vox.getPos().getCURelativePosition(_loc).y - _kl->y_h;
+    int z_min_rel = vox.getPos().getCURelativePosition(_loc).z - _kl->z_h;
+    int x_max_rel = vox.getPos().getCURelativePosition(_loc).x + _kl->x_h;
+    int y_max_rel = vox.getPos().getCURelativePosition(_loc).y + _kl->y_h;
+    int z_max_rel = vox.getPos().getCURelativePosition(_loc).z + _kl->z_h;
     // calculate for ranges
     forRange(x_min_rel, x_max_rel, 0);
     forRange(y_min_rel, y_max_rel, 1);
@@ -74,14 +88,19 @@ public:
       for (j = min[1]; j <= max[1]; j++)
         for (k = min[2]; k <= max[2]; k++) {
           //
-          pbuf = Position(i, j, k) - vox.getPos().toCURelativePosition(_loc);
-          wt = _kl->posToWt(pbuf);
-          pbuf = Position(i, j, k).toCURelativePosition();
+          pbuf = Position(i, j, k) - vox.getPos().getCURelativePosition(_loc);
+          wt = _kl->posToWt(pbuf); // corresponding weight
+          pbuf = Position(i, j, k).getVoxRelativePosition();
           outIdx = pbuf.toCUIdx();
-          _out[outIdx] += wt * (vox._r_m + vox._x_m + vox._y_m + vox._z_m);
+          _out[outIdx] += wt * (vox._r_m + vox._x_m + vox._y_m +
+                                vox._z_m); // TO be changed for binary kernel
         }
     _n++;
   }
+  /**
+   * @brief write : write output file, result of conv
+   * @param f : name of output file
+   */
   void write(const char *f) {
     std::ofstream of(f, std::ios_base::app);
     for (int i = 0; i < CU_VOL; i++) {
@@ -92,16 +111,33 @@ public:
       }
     }
   }
+  /**
+   * @brief reset : reset output to 0
+   */
   void reset() {
     for (int i = 0; i < CU_VOL; i++) {
       _out[i] = {0};
     }
     _n = 0;
   }
+  /**
+   * @brief getCULoc
+   * @return unit location
+   */
   Position getCULoc() { return _loc; }
+  /**
+   * @brief getVoxN
+   * @return number pf voxel in this unit
+   */
   unsigned int getVoxN() { return _n; }
 
 private:
+  /**
+   * @brief forRange : find range of for loop in procVox
+   * @param min_rel : minimum relative position reached by the voxel
+   * @param max_rel : maximum relative position reached by voxel
+   * @param dim : 0 for x, 1 for y and 2 for z
+   */
   void forRange(int min_rel, int max_rel, int dim) {
     min[dim] = min_rel;
     max[dim] = max_rel;
@@ -110,6 +146,11 @@ private:
     if (max_rel >= CU_SH[dim])
       max[dim] = CU_SH[dim] - 1;
   }
+  /**
+   * @brief toPos : from 1d list to 3d matrix
+   * @param idx
+   * @return a 3d position
+   */
   Position toPos(int idx) {
     Position pos;
     pos.z = idx / (CU_SH_X * CU_SH_Y);
@@ -119,11 +160,11 @@ private:
     return pos;
   }
   Kernel *_kl;
-  Position _loc;       // absolute location of the unit
-  unsigned int _n = 0; // counter-1 for voxels
-  Voxel vlist[MAX_VOX_CU];
-  float _out[CU_VOL] = {0};
-  int min[3], max[3];
+  Position _loc;            // absolute location of the unit
+  unsigned int _n = 0;      // counter-1 for voxels
+  Voxel vlist[MAX_VOX_CU];  // list of voxels in unit
+  float _out[CU_VOL] = {0}; // output of conv
+  int min[3], max[3];       // ranges for loops
 };
 
 #endif // COMPUTEUNIT_H

@@ -5,17 +5,15 @@ using namespace std;
 
 int main(int argc, char *argv[]) {
   // input args
-  if (argc < 3) {
+  if (argc < 2) {
     cout << "not enough arguments" << endl;
     return 1;
   }
-  string folder = argv[1];
-  folder += "/";
-  string out = argv[2];
+  string out = argv[1];
   // loading data
-  DataImporter *di = new DataImporter(folder);
+  DataImporter *di = new DataImporter();
   SparseTensor st = di->getTensor();
-  Kernel *kl = new Kernel(folder);
+  Kernel *kl = new Kernel();
   ComputeUnitList cu_l(kl);
   // iterate voxels to dispatch in units
   int m;
@@ -23,9 +21,8 @@ int main(int argc, char *argv[]) {
     cu_l.addVox(&st.vox[m]);
   }
   cu_l.display();
-
   // conv
-  system(("rm -f " + folder + out).c_str());
-  cu_l.conv((folder + out).c_str());
+  system(("rm -f " + out).c_str());
+  cu_l.conv((out).c_str());
   delete kl;
 }

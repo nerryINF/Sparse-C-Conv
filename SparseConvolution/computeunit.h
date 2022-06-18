@@ -11,16 +11,13 @@ public:
    * @brief Kernel : loading kernel
    * @param _f : input file
    */
-  Kernel(std::string _f) {
-    std::ifstream fin(_f + "/kernel.csv");
+  Kernel() {
     int i, j, k, n = 0;
-    // read kernel vol in first line
-    fin >> KL_VOL;
     // decalre
     m = new float[KL_VOL];
     off = new Position[KL_VOL];
     for (i = 0; i < KL_VOL; i++) {
-      fin >> m[i];
+      m[i] = kernel[i];
     }
 
     x_l = std::cbrt(KL_VOL);

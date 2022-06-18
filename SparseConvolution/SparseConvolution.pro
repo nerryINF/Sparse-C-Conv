@@ -12,6 +12,7 @@ HEADERS += \
     computeunit.h \
     conv3d.h \
     conv3d.h \
+    data.h \
     preproc.h
 
 DISTFILES += \

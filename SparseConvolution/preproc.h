@@ -10,14 +10,14 @@
 #include <fstream>
 #include <stdbool.h>
 #include <string.h>
+#include "data.h"
+#include <iostream>
 
 #define CEILING(x, y) (((x) + (y)-1) / (y))
 
 #define SH_X 41
 #define SH_Y 800
 #define SH_Z 1408
-
-int KL_VOL = 0;
 
 #define CU_SH_X 10
 #define CU_SH_Y 100
@@ -34,7 +34,6 @@ int KL_VOL = 0;
 // table containing CU shapes
 int CU_SH[3] = {CU_SH_X, CU_SH_Y, CU_SH_Z};
 
-#include <iostream>
 /**
  * @brief The Position class
  */
@@ -189,61 +188,48 @@ struct SparseTensor {
 
 class DataImporter {
 public:
-  DataImporter(std::string folder) {
-    _f = folder;
-    std::ifstream fin(_f + "/data_shape.csv");
-    fin >> st.num_vox;
+  DataImporter() {
+    st.num_vox = num_sparse;
     st.in = new Position[st.num_vox];
     st.vox = new Voxel[st.num_vox];
     //
-    fin.close();
     read_indices();
-    // read_sparse_shape();
-    read_batch_size();
     read_features();
   }
   SparseTensor getTensor() { return st; }
 
 private:
   void read_indices() {
-    std::ifstream fin(_f + "/indices.csv");
-    char cbuf;
     // iterate lines
     for (int i = 0; i < st.num_vox; i++) {
       // read line
-      fin >> st.in[i].x >> cbuf >> st.in[i].y >> cbuf >> st.in[i].z;
+      st.in[i].x = indices[i][0];
+      st.in[i].y = indices[i][1];
+      st.in[i].z = indices[i][2];
       st.vox[i].init(st.in[i]);
     }
-    fin.close();
   }
-  void read_sparse_shape() {
-    std::ifstream fin(_f + "/sparse_shape.csv");
-    char cbuf;
-    fin >> st.sh[0] >> cbuf >> st.sh[1] >> cbuf >> st.sh[2];
-    fin.close();
-  }
-  void read_batch_size() {
-    std::ifstream fin(_f + "/batch_size.csv");
-    fin >> st.b_sz;
-    fin.close();
-  }
+  //void read_sparse_shape() {
+  //  fin >> st.sh[0] >> cbuf >> st.sh[1] >> cbuf >> st.sh[2];
+  //  fin.close();
+  //}
   void read_features() {
-    std::ifstream fin(_f + "/features_numpoints.csv");
-    char cbuf;
     float x_m, y_m, z_m, r_m;
     int n;
     // iterate lines
     for (int i = 0; i < st.num_vox; i++) {
       // read line
-      fin >> x_m >> cbuf >> y_m >> cbuf >> z_m >> cbuf >> r_m >> cbuf >> n;
+      x_m = features[i][0];
+      y_m = features[i][1];
+      z_m = features[i][2];
+      r_m = features[i][3];
+      n = features[i][4];
       st.vox[i].setFeatures(x_m, y_m, z_m, r_m, n);
     }
-    fin.close();
   }
   SparseTensor st;
 
 private:
-  std::string _f;
 };
 
 #endif /* PREPROC_H_ */
